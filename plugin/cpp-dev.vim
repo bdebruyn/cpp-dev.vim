@@ -64,7 +64,7 @@ endfunction
 "
 "===============================================================================
 function! IsArmProcessor()
-   return $DOCKER ==# 'armv8-img'
+   return len(matchstr($DOCKER, 'armv8-[a-z]*-img')) > 0
 endfunction
 
 "===============================================================================
