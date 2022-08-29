@@ -212,7 +212,11 @@ function! BuildAll()
    exec "cg /tmp/buildoutput.txt | copen"
 endfunction
 
-"===============================================================================
+function! PKill(process)
+   let command=":!ssh " . GetBoard() . " \"pidof " . a:process . " | xargs kill -9"
+   exe command 
+endfunction
+
 "
 " -- Copy the executable corresponding to the test directory name
 "    to the ARM processor
@@ -221,14 +225,13 @@ endfunction
 function! CopyTestExecutable()
    if IsArmProcessor()
       if !DoesTestFixtureHaveExecutable()
-         return false
+         return 'no executable'
       endif
-
-      let executable=GetDirectoryName()
-      let command=':!sshpass -p "abcd123" scp build/bin/' . executable . ' ' . GetBoard() . ':'
-      exe command
+      "let command=':!sshpass -p "abcd123" scp build/bin/' . executable . ' ' . GetBoard() . ':'
+      let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
+      exe command . ' 2>>&1 | tee /tmp/vim-log.txt'
       redraw
-      return 'succeeded'
+      return message
    endif
    return 'Not an Arm processor'
 endfunction
@@ -355,7 +358,7 @@ function! GTestOneFixtureOneTest()
 
    if IsArmProcessor()
       call CopyTestExecutable()
-      let command=':!ssh ' . GetBoard() . ' ./' . executable . ' ' . gtest_filter[0] 
+      let command=':!ssh ' . GetBoard() . ' ". /etc/profile; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
       let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
    endif
