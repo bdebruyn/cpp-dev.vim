@@ -229,9 +229,9 @@ function! CopyTestExecutable()
       endif
       "let command=':!sshpass -p "abcd123" scp build/bin/' . executable . ' ' . GetBoard() . ':'
       let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
-      exe command . ' 2>>&1 | tee /tmp/vim-log.txt'
+      exe command
       redraw
-      return message
+      return 'success'
    endif
    return 'Not an Arm processor'
 endfunction
