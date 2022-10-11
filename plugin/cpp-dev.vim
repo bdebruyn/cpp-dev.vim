@@ -1,6 +1,7 @@
 "===============================================================================
 "
 "
+"  :unlet g:CPP_DEV_Version | runtime! plugin/cpp-dev.vim
 "
 "
 "===============================================================================
@@ -16,7 +17,6 @@ let g:CPP_DEV_Version= "0.0.1"
 
 let g:testDirectory=''
 let g:gtest_filter='*.*'
-"let g:board='root@192.168.10.10'
 
 let g:currentWindow=winnr()
 
@@ -227,11 +227,10 @@ function! CopyTestExecutable()
       if !DoesTestFixtureHaveExecutable()
          return 'no executable'
       endif
-      "let command=':!sshpass -p "abcd123" scp build/bin/' . executable . ' ' . GetBoard() . ':'
       let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
-      exe command
+      exe command . ' 2>&1 | tee /tmp/vim-log.txt'
       redraw
-      return 'success'
+      return "success"
    endif
    return 'Not an Arm processor'
 endfunction
@@ -358,7 +357,7 @@ function! GTestOneFixtureOneTest()
 
    if IsArmProcessor()
       call CopyTestExecutable()
-      let command=':!ssh ' . GetBoard() . ' ". /etc/profile; ./' . executable . ' ' . gtest_filter[0] . '"'
+      let command=':!ssh ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
       let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
    endif
