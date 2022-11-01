@@ -96,6 +96,25 @@ endfunction
 
 "===============================================================================
 "
+" -- 
+"
+"===============================================================================
+function! InstallMosquitto()
+   if (IsArmProcessor())
+      let command=':!scp /etc/mosquitto/mosquitto.conf ' . GetBoard() . ':'
+      exe command
+      let command=':!scp /repo/mosquitto/build/src/mosquitto ' . GetBoard() . ':'
+      exe command
+      redraw
+      return 'succeeded'
+   else
+      let command=':!sudo cp /repo/mosquitto/build/src/mosquitto /usr/bin'
+      exe command
+   endif
+endfunction
+
+"===============================================================================
+"
 " -- Verify the filename and the test fixture name
 "    match
 "
@@ -185,6 +204,7 @@ function! BuildTestFixture()
 endfunction
 
 "===============================================================================
+"
 "===============================================================================
 function! ConanArch()
    let arch=trim(system('grep -m 1 "^[ ]*arch=" conaninfo.txt | cut -d''='' -f2'))
@@ -192,6 +212,7 @@ function! ConanArch()
 endfunction
 
 "===============================================================================
+"
 "===============================================================================
 function! ConanPackage()
    let arch=trim(ConanArch())
@@ -217,6 +238,7 @@ function! PKill(process)
    exe command 
 endfunction
 
+"===============================================================================
 "
 " -- Copy the executable corresponding to the test directory name
 "    to the ARM processor
@@ -242,7 +264,7 @@ endfunction
 "===============================================================================
 function! CopyAllTestExecutables()
    if IsArmProcessor()
-      let command=':!sshpass -p "abcd123" scp build/bin/Test_* ' . GetBoard() . ':'
+      let command=':!scp build/bin/Test_* ' . GetBoard() . ':'
       exe command
       redraw
       return 'succeeded'
@@ -257,7 +279,7 @@ endfunction
 "===============================================================================
 function! CopyTestRunner()
    if IsArmProcessor()
-      let command=':!sshpass -p "abcd123" scp build/bin/TestRunner ' . GetBoard() . ':'
+      let command=':!scp build/bin/TestRunner ' . GetBoard() . ':'
       exe command
       redraw
       return 'succeeded'
@@ -281,7 +303,7 @@ endfunction
 "===============================================================================
 function! CopyResourcesDirCommand()
    if IsArmProcessor()
-      let command=':!sshpass -p "abcd123" scp -r resources/ ' . GetBoard() . ':'
+      let command=':!scp -r resources/ ' . GetBoard() . ':'
       exec command
       redraw
       return 'succeeded'
@@ -312,7 +334,7 @@ endfunction
 "===============================================================================
 function! RunAllRemoteTests()
    if IsArmProcessor()
-      let command='!sshpass -p "abcd123" ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
+      let command='!ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
    else
       let command='!find build/bin -type f -name "Test_*" -exec {} \;'
    endif
