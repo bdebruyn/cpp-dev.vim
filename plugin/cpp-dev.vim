@@ -397,9 +397,9 @@ function! GTestOneFixtureOneTest()
    endif
 
    let executable=GetDirectoryName()
+   call CopyTestExecutable()
 
    if IsArmProcessor()
-      call CopyTestExecutable()
       let command=':!ssh ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
       let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
@@ -445,9 +445,9 @@ function! GTestFixture()
    endif
 
    let executable=GetDirectoryName()
+   call CopyTestExecutable()
 
    if IsArmProcessor()
-      let file=CopyTestExecutable()
       let command=':!ssh ' . GetBoard() . ' ./' . executable . ' ' . gtest_filter[0] 
    else
       let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
@@ -466,6 +466,7 @@ endfunction
 "
 "===============================================================================
 function! GTestAllFixtures()
+   call CopyTestExecutable()
    let g:currentWindow=winnr()
    let command=RunAllRemoteTests()
    exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
@@ -487,6 +488,7 @@ function! GTestTestRunner()
    endif
 
    let executable=GetDirectoryName()
+   call CopyTestExecutable()
 
    if IsArmProcessor()
       call CopyTestRunner()
@@ -507,6 +509,8 @@ endfunction
 "
 "===============================================================================
 function! GTestAllTestRunner()
+   call CopyTestExecutable()
+
    let g:currentWindow=winnr()
    if IsArmProcessor()
       call CopyTestRunner()
