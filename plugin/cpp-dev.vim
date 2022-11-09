@@ -17,6 +17,7 @@ let g:CPP_DEV_Version= "0.0.1"
 
 let g:testDirectory=''
 let g:gtest_filter='*.*'
+let g:isMosquittoInstalled=0
 
 let g:currentWindow=winnr()
 
@@ -101,6 +102,9 @@ endfunction
 "
 "===============================================================================
 function! InstallMosquitto()
+   if (g:isMosquittoInstalled)
+      return
+   endif
    if (IsArmProcessor())
       let command=':!scp /etc/mosquitto/mosquitto.conf ' . GetBoard() . ':'
       exe command
@@ -109,13 +113,15 @@ function! InstallMosquitto()
       let command=':!scp /repo/mosquitto/build/client/mosquitto_* ' . GetBoard() . ':'
       exe command
       redraw
-      return 'succeeded'
    else
       let command=':!sudo cp /repo/mosquitto/build/src/mosquitto /usr/bin'
       exe command
       let command=':!sudo cp /repo/mosquitto/build/client/mosquitto_* /usr/bin'
       exe command
+      redraw
    endif
+   let g:isMosquittoInstalled=1
+   return 'succeeded'
 endfunction
 
 "===============================================================================
@@ -250,6 +256,7 @@ endfunction
 "
 "===============================================================================
 function! CopyTestExecutable()
+   call InstallMosquitto()
    if IsArmProcessor()
       if !DoesTestFixtureHaveExecutable()
          return 'no executable'
