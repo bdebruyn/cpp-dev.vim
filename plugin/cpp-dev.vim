@@ -106,14 +106,14 @@ function! InstallMosquitto()
       exe command
       let command=':!scp /repo/mosquitto/build/src/mosquitto ' . GetBoard() . ':'
       exe command
-      let command=':!scp /repo/mosquitto/build/build/client/mosquitto_* ' . GetBoard() . ':'
+      let command=':!scp /repo/mosquitto/build/client/mosquitto_* ' . GetBoard() . ':'
       exe command
       redraw
       return 'succeeded'
    else
       let command=':!sudo cp /repo/mosquitto/build/src/mosquitto /usr/bin'
       exe command
-      let command=':!sudo cp /repo/mosquitto/build/build/client/mosquitto_* /usr/bin'
+      let command=':!sudo cp /repo/mosquitto/build/client/mosquitto_* /usr/bin'
       exe command
    endif
 endfunction
