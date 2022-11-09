@@ -126,6 +126,15 @@ endfunction
 
 "===============================================================================
 "
+" -- Resets the global variable indicating mosquitto install to uninstalled
+"
+"===============================================================================
+function! ResetMosquittoInstall()
+   let g:isMosquittoInstalled=0
+endfunction
+
+"===============================================================================
+"
 " -- Verify the filename and the test fixture name
 "    match
 "
