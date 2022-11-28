@@ -632,6 +632,158 @@ function! GetInstallType()
 endfunction
 
 "===============================================================================
+" GCOV using 'lcov' and 'genhtml' 
+" Uses gtest and CMake
+" Works with clang version 10
+" sudo vim /usr/bin/llvm-gcov.sh
+"    #!/bin/bash
+"    exec llvm-cov-10 gcov "$@"
+" sudo chmod +x /usr/bin/llvm-gcov.sh
+" ref: https://logan.tw/posts/2015/04/28/check-code-coverage-with-clang-and-lcov/
+"===============================================================================
+
+"---------------------------------------------------------------------------------
+" CMake binary directory for gtest fixture
+"---------------------------------------------------------------------------------
+function! GetCMakeBinaryTestDir()
+   let testDir=GetDirectoryName()
+   let p="build/tests/" . testDir . "/CMakeFiles/" . testDir . ".dir"
+   return p
+endfunction
+
+"---------------------------------------------------------------------------------
+" 'lcov' command using clang. See reference above for /usr/bin/llvm-gcov.sh
+" Creates a separate directory for each gtest fixture
+"---------------------------------------------------------------------------------
+function! GetLcovCommand()
+   let testFile=GetFilenameNoExt()
+   let lcov="lcov --capture --directory . --base-directory . --gcov-tool llvm-gcov.sh -o " . testFile . ".info"
+   return lcov
+endfunction
+
+"---------------------------------------------------------------------------------
+" 'genhtml' command creates the `index.html' file used later
+"---------------------------------------------------------------------------------
+function! GetGenHtmlCommand()
+   let testFile=GetFilenameNoExt()
+   let genhtml="genhtml " . testFile . ".info --output-directory " . testFile
+   return genhtml
+endfunction
+
+"---------------------------------------------------------------------------------
+" 'lcov' appears to require running in in the same directory as the '.gcda' files.
+" Using 'cd' to the test directory
+"---------------------------------------------------------------------------------
+function! GetGcovChangeDirCommand()
+   let cd="cd " . GetCMakeBinaryTestDir() 
+   return cd
+endfunction
+
+"---------------------------------------------------------------------------------
+" Combines the change director, the lcov and genhtml commands into one command
+"---------------------------------------------------------------------------------
+function! GetGcovCommand()
+   let command=":!" . GetGcovChangeDirCommand() . " && " . GetLcovCommand() . " && " . GetGenHtmlCommand()
+   return command
+endfunction
+
+"---------------------------------------------------------------------------------
+" The path to the 'index.html' file after genhtml runs
+"---------------------------------------------------------------------------------
+function! GetTargetGcdaFilename()
+   let target="\"" . GetCMakeBinaryTestDir() . "/" . GetFilenameNoExt() . ".gcda\""
+   return target
+endfunction
+
+"---------------------------------------------------------------------------------
+" Checks if lcov can be run. Returns true if it can be run, otherwise false
+"---------------------------------------------------------------------------------
+function! IsGcovRunnable()
+   let isRunnable=!empty(expand(GetTargetGcdaFilename()))
+   return isRunnable
+endfunction
+
+"---------------------------------------------------------------------------------
+" Runs the gcov commands and outputs the results into a temporary file
+"---------------------------------------------------------------------------------
+function! RunGcovTarget()
+   let isRunnable=0
+   if IsGcovRunnable()
+      let command=GetGcovCommand()
+      exe command . ' 2>&1 | tee /tmp/gcov.txt'
+      let isRunnable=1
+   endif
+   return isRunnable
+endfunction
+
+"---------------------------------------------------------------------------------
+" Returns the name of the genhtml directory
+"---------------------------------------------------------------------------------
+function! GetGcovTargetDirName()
+   let dirName=getcwd() . '/' . GetCMakeBinaryTestDir() . '/' . GetFilenameNoExt() 
+   return dirName
+endfunction
+
+"---------------------------------------------------------------------------------
+" Checks if genhtml was generated. Returns true if the directory exists, 
+" otherwise false
+"---------------------------------------------------------------------------------
+function! IsGcovTargetDir()
+   let isExist=!empty(expand(GetGcovTargetDirName()))
+   return isExist
+endfunction
+
+"---------------------------------------------------------------------------------
+" Get the path and filename to 'index.html'
+"---------------------------------------------------------------------------------
+function! GetGcovTargetIndexHtml()
+   if IsGcovTargetDir()
+      let indexHtml=GetGcovTargetDirName() . "/index.html"
+      return indexHtml
+   endif
+   return ""
+endfunction
+
+"---------------------------------------------------------------------------------
+" Check if 'index.html' exists for a test and if true, then open it in firefox
+"---------------------------------------------------------------------------------
+function! OpenGcovInBrowser(logFilename)
+   if IsGcovTargetDir()
+      let command=":!firefox " . GetGcovTargetIndexHtml() . ' 2>&1 | tee ' . a:logFilename
+      exe command
+      return command
+   endif
+   return 'Error: lcov and/or genhtml data not available'
+endfunction
+
+"---------------------------------------------------------------------------------
+" Echo the full file name and path to the test's index.html file. Store the 
+" results in a temporary file.
+"---------------------------------------------------------------------------------
+function! EchoIndexHtmlPath(filePathName)
+   let command=':!echo ' . GetGcovTargetIndexHtml() . ' > ' . a:filePathName
+   exe command
+   return command
+endfunction
+
+"---------------------------------------------------------------------------------
+" Runs all the commands to generate gcov and then opens it in Firefox. The full
+" path to the 'index.html' is generated to the quickfix window for convenience 
+" should the user wish to open it in another browser.
+"---------------------------------------------------------------------------------
+function! RunGcovOnTest()
+   let g:currentWindow=winnr()
+   if RunGcovTarget()
+      if IsGcovTargetDir()
+         let logFilename='/tmp/gcov.txt'
+         call OpenGcovInBrowser(logFilename)
+         call EchoIndexHtmlPath('/tmp/index.txt')
+         exe ':cg /tmp/index.txt | copen' 
+      endif
+   endif
+endfunction
+
+"===============================================================================
 "===============================================================================
 function! WhichLibrary(filename)
 python3 << EOF
@@ -712,6 +864,7 @@ map <F5> :w <bar>call BuildTestFixture()<cr>
 map <F6> :w <bar>call GTestTestRunner()<cr><cr>
 map <F7> :w <bar>call GTestAllTestRunner()<cr><cr>
 map <F8> :w <bar>echo CopyResourcesToTarget()<cr><cr><cr>
+map <F8> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
 map <F10> :w <bar>call BuildAll()<cr>
 
 noremap <Leader>c :noh<cr>
