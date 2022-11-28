@@ -864,7 +864,7 @@ map <F5> :w <bar>call BuildTestFixture()<cr>
 map <F6> :w <bar>call GTestTestRunner()<cr><cr>
 map <F7> :w <bar>call GTestAllTestRunner()<cr><cr>
 map <F8> :w <bar>echo CopyResourcesToTarget()<cr><cr><cr>
-map <F8> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
+map <F9> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
 map <F10> :w <bar>call BuildAll()<cr>
 
 noremap <Leader>c :noh<cr>
