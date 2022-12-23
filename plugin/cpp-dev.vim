@@ -258,6 +258,22 @@ function! PKill(process)
    exe command 
 endfunction
 
+function! IsTestRunning()
+   let command='ps aux|grep "\-\-gtest_filter"'
+   let test=substitute(system(command), '\n\+$', '', '') | echo strtrans(test)
+   return len(test)
+endfunction
+
+function! KillTests()
+   if (IsTestRunning())
+      let kill="ps aux|grep '\-\-gtest_filter' | sed 's/ \+/ /g' |cut -d' ' -f2 |xargs kill -9"
+      let command=":!ssh " . GetBoard() . " " . kill 
+      let results=substitute(system(command), '\n\+$', '', '') | echo strtrans(results)
+      return results
+   endif
+   return "No tests running"
+endfunction
+
 "===============================================================================
 "
 " -- Copy the executable corresponding to the test directory name
@@ -270,6 +286,7 @@ function! CopyTestExecutable()
       if !DoesTestFixtureHaveExecutable()
          return 'no executable'
       endif
+      call KillTests()
       let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
       exe command . ' 2>&1 | tee /tmp/vim-log.txt'
       redraw
