@@ -21,6 +21,33 @@ let g:isMosquittoInstalled=0
 
 let g:currentWindow=winnr()
 
+
+"===============================================================================
+"
+" -- Search C++ specification files for occurances of a string
+"
+"===============================================================================
+function! SearchSpec(value)
+   let command=':!find -type f -name "*.h" | xargs grep -n "' . a:value . '"' 
+   exe command . ' 2>&1 | tee /tmp/SearchSpecOutput.txt'
+   redraw
+   exe ':cg /tmp/SearchSpecOutput.txt | copen' 
+   redraw
+endfunction
+
+"===============================================================================
+"
+" -- Search C++ implementation files for occurances of a string
+"
+"===============================================================================
+function! SearchImpl(value)
+   let command=':!find -type f -name "*.cpp" | xargs grep -n "' . a:value . '"' 
+   exe command . ' 2>&1 | tee /tmp/SearchImplOutput.txt'
+   redraw
+   exe ':cg /tmp/SearchImplOutput.txt | copen' 
+   redraw
+endfunction
+
 "===============================================================================
 "
 " -- returns the test fixture name and the test instance
