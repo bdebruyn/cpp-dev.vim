@@ -19,6 +19,15 @@ let g:testDirectory=''
 let g:gtest_filter='*.*'
 let g:isMosquittoInstalled=0
 
+"===============================================================================
+"  g:gcov 
+"     llvm - run the llvm code coverage tools (default) Expects llvm-15
+"     gnu  - run the gcov and lcov code coverage tools. Expects version 9
+"===============================================================================
+let g:gcov='llvm'
+let g:firefoxPid=0
+let g:firefoxWindows=0
+
 let g:currentWindow=winnr()
 
 
@@ -120,6 +129,17 @@ endfunction
 "===============================================================================
 function! GetFilenameNoExt()
    return expand('%:t:r')
+endfunction
+
+"===============================================================================
+"
+" -- returns test directory path of the current test
+"
+"===============================================================================
+function! GetTestBuildDirectory()
+   let testDirectory=GetDirectoryName()
+   let path='build/tests/' . testDirectory . '/CMakeFiles/' . testDirectory . '.dir'
+   return path
 endfunction
 
 "===============================================================================
@@ -396,12 +416,18 @@ endfunction
 "
 " -- Generate the command to run all 'build/bin/Test_*' binaries
 "
+"  TODO: Running GCOV on all tests files will not work as implemented below
+"  It will fail when merging the source with the execution data. Source will
+"  be in different folders relative to the single profraw file.
 "===============================================================================
 function! RunAllRemoteTests()
    if IsArmProcessor()
       let command='!ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
    else
-      let command='!find build/bin -type f -name "Test_*" -exec {} \;'
+      if IsGCOV()
+         let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+      endif
+      let command=':!' . qualifier . ' find build/bin -type f -name "Test_*" -exec {} \;'
    endif
    return command
 endfunction
@@ -446,7 +472,10 @@ function! GTestOneFixtureOneTest()
    if IsArmProcessor()
       let command=':!ssh ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
-      let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
+      if IsGCOV()
+         let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+      endif
+      let command=':!' . qualifier . './build/bin/' . executable . ' ' . gtest_filter[0]
    endif
 
    exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
@@ -494,7 +523,10 @@ function! GTestFixture()
    if IsArmProcessor()
       let command=':!ssh ' . GetBoard() . ' ./' . executable . ' ' . gtest_filter[0] 
    else
-      let command=':!./build/bin/' . executable . ' ' . gtest_filter[0]
+      if IsGCOV()
+         let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+      endif
+      let command=':!' . qualifier . './build/bin/' . executable . ' ' . gtest_filter[0]
    endif
 
 
@@ -538,7 +570,7 @@ function! GTestTestRunner()
       call CopyTestRunner()
       let command=':!ssh ' . GetBoard() . ' ./TestRunner ' . gtest_filter[0] 
    else
-      let command=':!build/bin/TestRunner ' . gtest_filter[0]
+      let command=':!let LLVM_PROFILE_FILE=build/tests/Test_Engine/CMakeFiles/Test_Engine.dir | build/bin/TestRunner ' . gtest_filter[0]
    endif
 
    exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
@@ -673,6 +705,281 @@ function! GetInstallType()
       return r[1]
    endif
 
+endfunction
+
+"===============================================================================
+" Common GCOV functions
+"===============================================================================
+
+"---------------------------------------------------------------------------------
+" returns True if the environment variable CONAN_PROFILE is set to
+" 'install-gcov'
+"---------------------------------------------------------------------------------
+function! IsGCOV()
+   let profile=$CONAN_PROFILE
+   let substring=stridx(profile,'gcov')
+   if substring > 0
+      return 1
+   return 0
+endfunction
+
+"===============================================================================
+" GCOV using 'llvm'
+" Uses gtest and CMake
+" Works with clang version 10
+"===============================================================================
+
+"---------------------------------------------------------------------------------
+" returns the test build direcctory
+"---------------------------------------------------------------------------------
+function! GetTestDirectory()
+   if IsGCOV()
+      let path='build/bin/' . GetDirectoryName()
+      return path
+   endif
+   return ''
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns the path to where the default.profraw file is written
+"---------------------------------------------------------------------------------
+function! GetLlvmProfileFile()
+   if IsGCOV()
+      let path='let LLVM_PROFILE_FILE="build/tests/' . GetDirectoryName() . '/CMakeFiles/' . GetDirectoryName() . '.dir/"'
+      return path
+   endif
+   return ''
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns the path to where the default.profraw file is written
+"---------------------------------------------------------------------------------
+function! GetLlvmBuildPath()
+   if IsGCOV()
+      let path='build/tests/' . GetDirectoryName() . '/CMakeFiles/' . GetDirectoryName() . '.dir/'
+      return path
+   endif
+   return ''
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns the path to where the default.profraw file is written
+"---------------------------------------------------------------------------------
+function! GetLlvmHtmlPath()
+   if IsGCOV()
+      let path=GetLlvmBuildPath() . 'html/'
+      return path
+   endif
+   return ''
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns 1 if the default.profraw exists otherwise 0
+"---------------------------------------------------------------------------------
+function! IsProfRawExist()
+   if IsGCOV()
+      let path=GetLlvmBuildPath() . '/default.profraw'
+      let isExist=!empty(expand(path))
+      return isExist
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns 1 if the default.profdata exists otherwise 0
+"---------------------------------------------------------------------------------
+function! IsProfDataExist()
+   if IsGCOV()
+      let path=GetLlvmBuildPath() . '/default.profdata'
+      let isExist=!empty(expand(path))
+      return isExist
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns 1 if the html files exists otherwise 0
+"---------------------------------------------------------------------------------
+function! IsHtmlExist()
+   if IsGCOV()
+      let path=GetLlvmHtmlPath() . '/index.html'
+      let isExist=!empty(expand(path))
+      return isExist
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" returns path to index file including the filename
+"---------------------------------------------------------------------------------
+function! GetHtml()
+   if IsGCOV()
+      let repo=fnamemodify(getcwd(), ':t')
+      let path='file:///repo/' . repo . '/' . GetLlvmHtmlPath() . 'index.html'
+      return path
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" executes the llvm-profdata merge command to combine all tests
+"---------------------------------------------------------------------------------
+function! ExecuteLlvmProfdata()
+   if IsGCOV() && IsProfRawExist()
+      let command=':!llvm-profdata-15 merge ' . GetLlvmBuildPath() . 'default.profraw -o ' . GetLlvmBuildPath() . 'default.profdata'
+      exe command . ' 2>&1 | tee /tmp/gcov.txt'
+      return 1
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" executes the llvm-cov show command to html
+"---------------------------------------------------------------------------------
+function! ExecuteLlvmCovShow()
+   if IsGCOV() && IsProfDataExist()
+      let command=':!llvm-cov-15 show ' . GetTestDirectory() . ' -instr-profile=' . GetLlvmBuildPath(). 'default.profdata  -format=html --show-branches=count --show-branch-summary -output-dir=' . GetLlvmHtmlPath()
+      exe command . ' 2>&1 | tee /tmp/gcov.txt'
+      return 1
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! GetListOfFirefoxPids()
+   let response=system('pgrep firefox')
+   let response=split(response, '\n')
+   return response
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! GetFirefoxWindowId(pid)
+   let command='xdotool search --pid ' . a:pid
+   let windows=system(command)
+   let windows=split(windows, '\n')
+   let i=len(windows)
+   if i==0
+      return -1
+   endif
+   return windows[i-1]
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! SetBrowser(pid)
+   let g:firefoxPid=a:pid
+   return g:firefoxPid
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! IsGCovBrowser()
+   let pids=GetListOfFirefoxPids()
+   for pid in pids
+      if pid ==# g:firefoxPid
+         return pid
+      endif
+   endfor
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! IsThereAGCovTest()
+   if g:firefoxPid != 0
+      let pids=GetListOfFirefoxPids()
+      for pid in pids
+         let window=system('xdotool search --pid ' . g:firefoxPid . ' -name ' . GetHtml() . ' |tail -1')
+      endfor
+      return system('xdotool windowactivate --sync ' . window)
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" display gcov in html
+"---------------------------------------------------------------------------------
+function! StartFirefox()
+   let pid=system('firefox & sleep 2; echo $(pgrep firefox | tail -1)')
+   let pid=split(pid, '\n')
+   let i=len(pid)
+   let g:firefoxPid=pid[i-1]
+   let g:firefoxWindows=GetFirefoxWindowId(g:firefoxPid)
+   return [g:firefoxPid, g:firefoxWindows]
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! CreateAFirefoxTab()
+   if g:firefoxWindows != 0
+      let window=g:firefoxWindows
+      let html=GetHtml()
+      " let command='xdotool key --window ' . window . ' ctrl+t ; xdotool key --window ' . window . ' ; xdotool key --window ' . window . ' ctrl+l; xdotool key --window ' . window . ' key --delay 250 type ' . html . ' ; xdotool key --window ' . window . ' --delay 100 "Return"'; 
+      let command='xdotool key --window ' . window . ' ctrl+t key --delay 50 ctrl+l; xdotool type "' . html . '" ; xdotool key --delay 1000 "Return"'
+      echo command
+      let result= system(command)
+      return result
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function! Return()
+   if g:firefoxWindows != 0
+      let window=g:firefoxWindows
+      let command='xdotool key --delay 250 --window ' . window . ' "Return"'
+      call system(command)
+      return 1
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" 
+"---------------------------------------------------------------------------------
+function PrintPid()
+   return [ g:firefoxPid, g:firefoxWindows]
+endfunction
+
+"---------------------------------------------------------------------------------
+" display gcov in html
+"---------------------------------------------------------------------------------
+function! ExecuteBrowser()
+   if IsGCOV() && IsHtmlExist()
+      call StartFirefox()
+      let index=GetHtml()
+      let command='xdotool search "Mozilla Firefox" windowactivate --sync key ctrl+t key --delay 500 ctrl+l key --delay 250 --clearmodifiers type "' . index . '" ; xdotool key --delay 1000 "Return"'
+      call system(command)
+      return 1
+   endif
+   return 0
+endfunction
+
+"---------------------------------------------------------------------------------
+" executes the llvm-cov show command to html
+"---------------------------------------------------------------------------------
+function! LlvmGcov()
+   if IsGCOV() 
+      let isProfData=ExecuteLlvmProfdata()
+      if !isProfData
+         return 0
+      endif
+      let isProfHtml=ExecuteLlvmCovShow()
+      if !isProfHtml
+         return 0
+      endif
+      call ExecuteBrowser()
+   endif
 endfunction
 
 "===============================================================================
@@ -817,14 +1124,18 @@ endfunction
 "---------------------------------------------------------------------------------
 function! RunGcovOnTest()
    let g:currentWindow=winnr()
-   if RunGcovTarget()
-      if IsGcovTargetDir()
-         let logFilename='/tmp/gcov.txt'
-         call OpenGcovInBrowser(logFilename)
-         call EchoIndexHtmlPath('/tmp/index.txt')
-         exe ':cg /tmp/index.txt | copen' 
+   if g:gcov == 'llvm'
+      call LlvmGcov()
+   else
+      if RunGcovTarget()
+         if IsGcovTargetDir()
+            let logFilename='/tmp/gcov.txt'
+            call OpenGcovInBrowser(logFilename)
+            call EchoIndexHtmlPath('/tmp/index.txt')
+            exe ':cg /tmp/index.txt | copen' 
+         endif
       endif
-   endif
+
 endfunction
 
 "===============================================================================
@@ -908,7 +1219,8 @@ map <F5> :w <bar>call BuildTestFixture()<cr>
 map <F6> :w <bar>call GTestTestRunner()<cr><cr>
 map <F7> :w <bar>call GTestAllTestRunner()<cr><cr>
 map <F8> :w <bar>echo CopyResourcesToTarget()<cr><cr><cr>
-map <F9> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
+map <F9> :w <bar>echo LlvmGcov()<cr><cr><cr>
+" map <F9> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
 map <F10> :w <bar>call BuildAll()<cr>
 
 noremap <Leader>c :noh<cr>
