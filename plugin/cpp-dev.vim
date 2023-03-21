@@ -972,14 +972,15 @@ function! LlvmGcov()
    if IsGCOV() 
       let isProfData=ExecuteLlvmProfdata()
       if !isProfData
-         return 0
+         return -1
       endif
       let isProfHtml=ExecuteLlvmCovShow()
       if !isProfHtml
-         return 0
+         return -2
       endif
-      call ExecuteBrowser()
+      return ExecuteBrowser()
    endif
+   return 0
 endfunction
 
 "===============================================================================
