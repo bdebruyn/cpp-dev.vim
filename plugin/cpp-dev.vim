@@ -25,8 +25,9 @@ let g:isMosquittoInstalled=0
 "     gnu  - run the gcov and lcov code coverage tools. Expects version 9
 "===============================================================================
 let g:gcov='llvm'
-let g:firefoxPid=0
-let g:firefoxWindows=0
+let g:NO_PID=-1
+let g:firefoxPid=g:NO_PID
+let g:firefoxWindow=0
 
 let g:currentWindow=winnr()
 
@@ -335,7 +336,7 @@ function! CopyTestExecutable()
       endif
       call KillTests()
       let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
-      exe command . ' 2>&1 | tee /tmp/vim-log.txt'
+      silent exe command . ' 2>&1 | tee /tmp/vim-log.txt'
       redraw
       return "success"
    endif
@@ -365,7 +366,7 @@ endfunction
 function! CopyTestRunner()
    if IsArmProcessor()
       let command=':!scp build/bin/TestRunner ' . GetBoard() . ':'
-      exe command
+      silent exe command
       redraw
       return 'succeeded'
    endif
@@ -423,13 +424,33 @@ endfunction
 function! RunAllRemoteTests()
    if IsArmProcessor()
       let command='!ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
+      silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
+      redraw!
    else
       if IsGCOV()
-         let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+        silent call system("rm -rf build/cov; mkdir -p build/cov")
+        "
+        let tests=globpath('build/bin', "Test_*",1,1)
+        let command=':!echo "\n"'
+        silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
+        for test in tests
+           let test=fnamemodify(test, ':t')
+           let qualifier='LLVM_PROFILE_FILE=build/cov/' . test . '.profraw '
+           let command=':!' . qualifier . ' ./build/bin/' . test
+           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
+           let command=':!llvm-profdata-15 merge build/cov/' . test . '.profraw -o build/cov/' . test . '.profdata'
+           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
+           let command=':!llvm-cov-15 show -instr-profile=build/cov/' . test . '.profdata  -format=html --show-branches=count --show-branch-summary -output-dir=build/cov/' . test . ' build/bin/' . test
+           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
+        endfor
+        "
+        redraw!
+      else
+        let command=':!find build/bin -type f -name "Test_*" -exec {} \;'
+        silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
+        redraw!
       endif
-      let command=':!' . qualifier . ' find build/bin -type f -name "Test_*" -exec {} \;'
    endif
-   return command
 endfunction
 
 "===============================================================================
@@ -542,10 +563,9 @@ endfunction
 "
 "===============================================================================
 function! GTestAllFixtures()
-   call CopyTestExecutable()
    let g:currentWindow=winnr()
-   let command=RunAllRemoteTests()
-   exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
+   call CopyTestExecutable()
+   call RunAllRemoteTests()
    exec 'cg /tmp/gtestoutput.txt | copen'
 endfunction
 
@@ -827,7 +847,7 @@ endfunction
 function! ExecuteLlvmProfdata()
    if IsGCOV() && IsProfRawExist()
       let command=':!llvm-profdata-15 merge ' . GetLlvmBuildPath() . 'default.profraw -o ' . GetLlvmBuildPath() . 'default.profdata'
-      exe command . ' 2>&1 | tee /tmp/gcov.txt'
+      silent exe command . ' 2>&1 | tee /tmp/gcov.txt'
       return 1
    endif
    return 0
@@ -839,7 +859,7 @@ endfunction
 function! ExecuteLlvmCovShow()
    if IsGCOV() && IsProfDataExist()
       let command=':!llvm-cov-15 show ' . GetTestDirectory() . ' -instr-profile=' . GetLlvmBuildPath(). 'default.profdata  -format=html --show-branches=count --show-branch-summary -output-dir=' . GetLlvmHtmlPath()
-      exe command . ' 2>&1 | tee /tmp/gcov.txt'
+      silent exe command . ' 2>&1 | tee /tmp/gcov.txt'
       return 1
    endif
    return 0
@@ -911,16 +931,16 @@ function! StartFirefox()
    let pid=split(pid, '\n')
    let i=len(pid)
    let g:firefoxPid=pid[i-1]
-   let g:firefoxWindows=GetFirefoxWindowId(g:firefoxPid)
-   return [g:firefoxPid, g:firefoxWindows]
+   let g:firefoxWindow=GetFirefoxWindowId(g:firefoxPid)
+   return [g:firefoxPid, g:firefoxWindow]
 endfunction
 
 "---------------------------------------------------------------------------------
 " 
 "---------------------------------------------------------------------------------
 function! CreateAFirefoxTab()
-   if g:firefoxWindows != 0
-      let window=g:firefoxWindows
+   if g:firefoxWindow != 0
+      let window=g:firefoxWindow
       let html=GetHtml()
       " let command='xdotool key --window ' . window . ' ctrl+t ; xdotool key --window ' . window . ' ; xdotool key --window ' . window . ' ctrl+l; xdotool key --window ' . window . ' key --delay 250 type ' . html . ' ; xdotool key --window ' . window . ' --delay 100 "Return"'; 
       let command='xdotool key --window ' . window . ' ctrl+t key --delay 50 ctrl+l; xdotool type "' . html . '" ; xdotool key --delay 1000 "Return"'
@@ -935,8 +955,8 @@ endfunction
 " 
 "---------------------------------------------------------------------------------
 function! Return()
-   if g:firefoxWindows != 0
-      let window=g:firefoxWindows
+   if g:firefoxWindow != 0
+      let window=g:firefoxWindow
       let command='xdotool key --delay 250 --window ' . window . ' "Return"'
       call system(command)
       return 1
@@ -945,10 +965,53 @@ function! Return()
 endfunction
 
 "---------------------------------------------------------------------------------
+" Check if any  of the firfox pids are mine. If not, create a new instance. 
+" Use the existing tab to grab the html file. 
+"---------------------------------------------------------------------------------
+function! OpenFirefox()
+   if g:firefoxPid !=# g:NO_PID
+     let isMatch=0
+     let pids=split(system('pgrep firefox'), '\n')
+     let command='echo ' . ''.join(pids) . ' > /tmp/firefox.txt'
+     silent call system(command)
+     for pid in pids
+        if pid ==# g:firefoxPid
+           let isMatch=1
+           break
+        endif
+     endfor
+     if !isMatch
+        let g:firefoxPid=g:NO_PID
+     endif
+   endif
+   if g:firefoxPid ==# g:NO_PID
+      let g:firefoxPid=system('firefox&')
+      let command='echo "restarting firefox" >> /tmp/firefox.txt'
+      silent call system(command)
+      sleep 3
+   endif
+
+   let command='xdotool search -pid ' . g:firefoxPid
+   let windows=system(command)
+   let window=windows[len(windows)-1]
+
+   let html=GetHtml()
+   let command='xdotool key --window ' . window . ' ctrl+t; sleep 0.5; xdotool key --window ' . window . ' ctrl+l; sleep 0.5; xdotool type "' . html . '" ; sleep 0.5; xdotool key "Return"'
+   silent call system(command)
+
+   " let command='xdotool key --window ' . window . ' "Return"'
+   " silent call system(command)
+
+   redraw!
+
+   return g:firefoxPid
+endfunction
+
+"---------------------------------------------------------------------------------
 " 
 "---------------------------------------------------------------------------------
 function PrintPid()
-   return [ g:firefoxPid, g:firefoxWindows]
+   return [ g:firefoxPid, g:firefoxWindow]
 endfunction
 
 "---------------------------------------------------------------------------------
@@ -958,7 +1021,7 @@ function! ExecuteBrowser()
    if IsGCOV() && IsHtmlExist()
       call StartFirefox()
       let index=GetHtml()
-      let command='xdotool search "Mozilla Firefox" windowactivate --sync key ctrl+t key --delay 500 ctrl+l key --delay 250 --clearmodifiers type "' . index . '" ; xdotool key --delay 1000 "Return"'
+      let command='xdotool search "Mozilla Firefox" windowactivate --sync key --delay 500 ctrl+l key --delay 250 --clearmodifiers type "' . index . '" ; xdotool key --delay 1000 "Return"'
       call system(command)
       return 1
    endif
@@ -978,8 +1041,9 @@ function! LlvmGcov()
       if !isProfHtml
          return -2
       endif
-      return ExecuteBrowser()
+      return OpenFirefox()
    endif
+   redraw!
    return 0
 endfunction
 
