@@ -495,6 +495,8 @@ function! GTestOneFixtureOneTest()
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+      else
+         let qualifier=''
       endif
       let command=':!' . qualifier . './build/bin/' . executable . ' ' . gtest_filter[0]
    endif
@@ -546,6 +548,8 @@ function! GTestFixture()
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
+      else
+         let qualifier=''
       endif
       let command=':!' . qualifier . './build/bin/' . executable . ' ' . gtest_filter[0]
    endif
