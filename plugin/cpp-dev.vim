@@ -1303,6 +1303,9 @@ noremap <Leader>r :split<bar> YcmCompleter GoToReferences<cr>
 nnoremap <leader>i :tabnew<bar>call OpenNerdTreePanel()<CR>
 nnoremap <leader>D :tabclose<CR>
 
+nnoremap ]l :lnext<CR>
+nnoremap [l :lprev<CR>
+
 nmap <C-h> <C-w>h
 nmap <C-j> <C-w>j
 nmap <C-k> <C-w>k
