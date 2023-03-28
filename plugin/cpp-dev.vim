@@ -744,6 +744,7 @@ function! IsGCOV()
    let substring=stridx(profile,'gcov')
    if substring > 0
       return 1
+   endif
    return 0
 endfunction
 
