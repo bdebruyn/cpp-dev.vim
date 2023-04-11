@@ -28,6 +28,8 @@ let g:gcov='llvm'
 let g:NO_PID=-1
 let g:firefoxPid=g:NO_PID
 let g:firefoxWindow=0
+let g:midoriPid=g:NO_PID
+let g:midoriWindow=0
 
 let g:currentWindow=winnr()
 
@@ -1012,6 +1014,11 @@ function! OpenFirefox()
    return g:firefoxPid
 endfunction
 
+function! OpenMidori()
+   silent call system('midori -a ' . GetHtml() . ' &')
+   redraw!
+endfunction
+
 "---------------------------------------------------------------------------------
 " 
 "---------------------------------------------------------------------------------
@@ -1046,7 +1053,8 @@ function! LlvmGcov()
       if !isProfHtml
          return -2
       endif
-      return OpenFirefox()
+      return OpenMidori()
+      "return OpenFirefox()
    endif
    redraw!
    return 0
