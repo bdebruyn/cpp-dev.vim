@@ -783,7 +783,7 @@ endfunction
 "---------------------------------------------------------------------------------
 function! GetLlvmBuildPath()
    if IsGCOV()
-      let path='build/tests/' . GetDirectoryName() . '/CMakeFiles/' . GetDirectoryName() . '.dir/'
+      let path='build/cov/' . GetDirectoryName() . '/'
       return path
    endif
    return ''
@@ -842,7 +842,7 @@ endfunction
 function! GetHtml()
    if IsGCOV()
       let repo=fnamemodify(getcwd(), ':t')
-      let path='file:///repo/' . repo . '/' . GetLlvmHtmlPath() . 'index.html'
+      let path='file:///repo/' . repo . '/' . GetLlvmBuildPath() . 'index.html'
       return path
    endif
    return 0
