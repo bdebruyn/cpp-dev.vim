@@ -415,13 +415,6 @@ function! CopyResourcesToTarget()
    return 'Not an Arm processor'
 endfunction
 
-function! Exe()
-   let test=GetDirectoryName()
-           let qualifier='LLVM_PROFILE_FILE=build/cov/' . test . '.profraw '
-           let command=':!' . qualifier . ' ./build/bin/' . test
-           exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
-endfunction
-
 "===============================================================================
 "
 " -- Generate the command to run all 'build/bin/Test_*' binaries
@@ -569,21 +562,6 @@ function! GTestFixture()
    redraw
    exe ':cg /tmp/gtestoutput.txt | copen' 
    redraw
-endfunction
-
-"===============================================================================
-"
-" -- Execute all tests within a binary test executable.
-"    Support llvm-cov tool where only one binary is covered
-"
-"===============================================================================
-function! GTestBinary()
-   let g:currentWindow=winnr()
-   let directoryName=GetDirectoryName();
-   let executable='build/bin/' . directoryName
-   call CopyTestExecutable()
-   call RunAllRemoteTests()
-   exec 'cg /tmp/gtestoutput.txt | copen'
 endfunction
 
 "===============================================================================
