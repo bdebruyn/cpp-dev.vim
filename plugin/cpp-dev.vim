@@ -432,19 +432,20 @@ function! RunAllRemoteTests()
       if IsGCOV()
         silent call system("rm -rf build/cov; mkdir -p build/cov")
         "
-        let tests=globpath('build/bin', "Test_*",1,1)
+        let test=GetDirectoryName()
+        "
         let command=':!echo "\n"'
         silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
-        for test in tests
-           let test=fnamemodify(test, ':t')
-           let qualifier='LLVM_PROFILE_FILE=build/cov/' . test . '.profraw '
-           let command=':!' . qualifier . ' ./build/bin/' . test
-           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
-           let command=':!llvm-profdata-15 merge build/cov/' . test . '.profraw -o build/cov/' . test . '.profdata'
-           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
-           let command=':!llvm-cov-15 show -instr-profile=build/cov/' . test . '.profdata  -format=html --show-branches=count --show-branch-summary -output-dir=build/cov/' . test . ' build/bin/' . test
-           silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
-        endfor
+        "
+        let qualifier='LLVM_PROFILE_FILE=build/cov/' . test . '.profraw '
+        let command=':!' . qualifier . ' ./build/bin/' . test
+        silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
+        "
+        let command=':!llvm-profdata-15 merge build/cov/' . test . '.profraw -o build/cov/' . test . '.profdata'
+        silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
+        "
+        let command=':!llvm-cov-15 show -instr-profile=build/cov/' . test . '.profdata  -format=html --show-branches=count --show-branch-summary -output-dir=build/cov/' . test . ' build/bin/' . test
+        silent exec command . " 2>&1 | tee -a /tmp/gtestoutput.txt"
         "
         redraw!
       else
