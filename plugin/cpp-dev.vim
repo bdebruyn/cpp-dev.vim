@@ -1015,7 +1015,7 @@ function! OpenFirefox()
 endfunction
 
 function! OpenMidori()
-   silent call system('midori -a ' . GetHtml() . ' &')
+   silent call system('epiphany ' . GetHtml() . ' &')
    redraw!
 endfunction
 
