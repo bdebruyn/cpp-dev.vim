@@ -304,7 +304,7 @@ function! BuildAll()
 endfunction
 
 function! PKill(process)
-   let command=":!ssh " . GetBoard() . " \"pidof " . a:process . " | xargs kill -9"
+   let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa \"pidof " . a:process . " | xargs kill -9"
    exe command 
 endfunction
 
@@ -317,7 +317,7 @@ endfunction
 function! KillTests()
    if (IsTestRunning())
       let kill="ps aux|grep '\-\-gtest_filter' | sed 's/ \+/ /g' |cut -d' ' -f2 |xargs kill -9"
-      let command=":!ssh " . GetBoard() . " " . kill 
+      let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa " . kill 
       let results=substitute(system(command), '\n\+$', '', '') | echo strtrans(results)
       return results
    endif
@@ -425,7 +425,7 @@ endfunction
 "===============================================================================
 function! RunAllRemoteTests()
    if IsArmProcessor()
-      let command='!ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
+      let command='!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa "find -type f -name \"Test_*\" -exec {} \;"'
       silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
       redraw!
    else
@@ -494,7 +494,7 @@ function! GTestOneFixtureOneTest()
    call CopyTestExecutable()
 
    if IsArmProcessor()
-      let command=':!ssh ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
+      let command=':!ssh ' . GetBoard() . ' -o HostKeyAlgorithms=+ssh-rsa ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
@@ -547,7 +547,7 @@ function! GTestFixture()
    call CopyTestExecutable()
 
    if IsArmProcessor()
-      let command=':!ssh ' . GetBoard() . ' ./' . executable . ' ' . gtest_filter[0] 
+      let command=':!ssh ' . GetBoard() . ' -o HostKeyAlgorithms=+ssh-rsa  ./' . executable . ' ' . gtest_filter[0] 
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
@@ -595,7 +595,7 @@ function! GTestTestRunner()
 
    if IsArmProcessor()
       call CopyTestRunner()
-      let command=':!ssh ' . GetBoard() . ' ./TestRunner ' . gtest_filter[0] 
+      let command=':!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa ./TestRunner ' . gtest_filter[0] 
    else
       let command=':!let LLVM_PROFILE_FILE=build/tests/Test_Engine/CMakeFiles/Test_Engine.dir | build/bin/TestRunner ' . gtest_filter[0]
    endif
@@ -617,7 +617,7 @@ function! GTestAllTestRunner()
    let g:currentWindow=winnr()
    if IsArmProcessor()
       call CopyTestRunner()
-      let command=':!ssh ' . GetBoard() . ' ./TestRunner '
+      let command=':!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa ./TestRunner '
    else
       let command=':!build/bin/TestRunner ' 
    endif
