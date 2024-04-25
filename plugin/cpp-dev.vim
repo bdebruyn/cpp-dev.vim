@@ -156,17 +156,16 @@ function! InstallMosquitto()
       return
    endif
    if (IsArmProcessor())
-      let command=':!scp /etc/mosquitto/mosquitto.conf ' . GetBoard() . ':'
+      let path='/repo/.conan/data/mosquittov2/2.0.15/local/stable/package/*'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa ' . path . '/config/mosquitto.conf ' . GetBoard() . ':'
       exe command
-      let command=':!scp /repo/mosquitto/build/src/mosquitto ' . GetBoard() . ':'
-      exe command
-      let command=':!scp /repo/mosquitto/build/client/mosquitto_* ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa ' . path . '/bin/mosquitto* ' . GetBoard() . ':'
       exe command
       redraw
    else
-      let command=':!sudo cp /repo/mosquitto/build/src/mosquitto /usr/bin'
+      let command=':!sudo cp /repo/mosquittov2/build/src/mosquitto /usr/bin'
       exe command
-      let command=':!sudo cp /repo/mosquitto/build/client/mosquitto_* /usr/bin'
+      let command=':!sudo cp /repo/mosquittov2/build/client/mosquitto_* /usr/bin'
       exe command
       redraw
    endif
@@ -337,7 +336,7 @@ function! CopyTestExecutable()
          return 'no executable'
       endif
       call KillTests()
-      let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
       silent exe command . ' 2>&1 | tee /tmp/vim-log.txt'
       redraw
       return "success"
@@ -352,7 +351,7 @@ endfunction
 "===============================================================================
 function! CopyAllTestExecutables()
    if IsArmProcessor()
-      let command=':!scp build/bin/Test_* ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/Test_* ' . GetBoard() . ':'
       exe command
       redraw
       return 'succeeded'
@@ -367,7 +366,7 @@ endfunction
 "===============================================================================
 function! CopyTestRunner()
    if IsArmProcessor()
-      let command=':!scp build/bin/TestRunner ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/TestRunner ' . GetBoard() . ':'
       silent exe command
       redraw
       return 'succeeded'
@@ -391,7 +390,7 @@ endfunction
 "===============================================================================
 function! CopyResourcesDirCommand()
    if IsArmProcessor()
-      let command=':!scp -r resources/ ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa -r resources/ ' . GetBoard() . ':'
       exec command
       redraw
       return 'succeeded'
