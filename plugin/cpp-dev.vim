@@ -156,17 +156,16 @@ function! InstallMosquitto()
       return
    endif
    if (IsArmProcessor())
-      let command=':!scp /etc/mosquitto/mosquitto.conf ' . GetBoard() . ':'
+      let path='/repo/.conan/data/mosquittov2/2.0.15/local/stable/package/*'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa ' . path . '/config/mosquitto.conf ' . GetBoard() . ':'
       exe command
-      let command=':!scp /repo/mosquitto/build/src/mosquitto ' . GetBoard() . ':'
-      exe command
-      let command=':!scp /repo/mosquitto/build/client/mosquitto_* ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa ' . path . '/bin/mosquitto* ' . GetBoard() . ':'
       exe command
       redraw
    else
-      let command=':!sudo cp /repo/mosquitto/build/src/mosquitto /usr/bin'
+      let command=':!sudo cp /repo/mosquittov2/build/src/mosquitto /usr/bin'
       exe command
-      let command=':!sudo cp /repo/mosquitto/build/client/mosquitto_* /usr/bin'
+      let command=':!sudo cp /repo/mosquittov2/build/client/mosquitto_* /usr/bin'
       exe command
       redraw
    endif
@@ -304,7 +303,7 @@ function! BuildAll()
 endfunction
 
 function! PKill(process)
-   let command=":!ssh " . GetBoard() . " \"pidof " . a:process . " | xargs kill -9"
+   let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa \"pidof " . a:process . " | xargs kill -9"
    exe command 
 endfunction
 
@@ -317,7 +316,7 @@ endfunction
 function! KillTests()
    if (IsTestRunning())
       let kill="ps aux|grep '\-\-gtest_filter' | sed 's/ \+/ /g' |cut -d' ' -f2 |xargs kill -9"
-      let command=":!ssh " . GetBoard() . " " . kill 
+      let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa " . kill 
       let results=substitute(system(command), '\n\+$', '', '') | echo strtrans(results)
       return results
    endif
@@ -337,7 +336,7 @@ function! CopyTestExecutable()
          return 'no executable'
       endif
       call KillTests()
-      let command=':!scp build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
       silent exe command . ' 2>&1 | tee /tmp/vim-log.txt'
       redraw
       return "success"
@@ -352,7 +351,7 @@ endfunction
 "===============================================================================
 function! CopyAllTestExecutables()
    if IsArmProcessor()
-      let command=':!scp build/bin/Test_* ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/Test_* ' . GetBoard() . ':'
       exe command
       redraw
       return 'succeeded'
@@ -367,7 +366,7 @@ endfunction
 "===============================================================================
 function! CopyTestRunner()
    if IsArmProcessor()
-      let command=':!scp build/bin/TestRunner ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/TestRunner ' . GetBoard() . ':'
       silent exe command
       redraw
       return 'succeeded'
@@ -391,7 +390,7 @@ endfunction
 "===============================================================================
 function! CopyResourcesDirCommand()
    if IsArmProcessor()
-      let command=':!scp -r resources/ ' . GetBoard() . ':'
+      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa -r resources/ ' . GetBoard() . ':'
       exec command
       redraw
       return 'succeeded'
@@ -425,7 +424,7 @@ endfunction
 "===============================================================================
 function! RunAllRemoteTests()
    if IsArmProcessor()
-      let command='!ssh ' . GetBoard() . ' "find -type f -name \"Test_*\" -exec {} \;"'
+      let command='!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa "find -type f -name \"Test_*\" -exec {} \;"'
       silent exec command . " 2>&1 | tee /tmp/gtestoutput.txt"
       redraw!
    else
@@ -494,7 +493,7 @@ function! GTestOneFixtureOneTest()
    call CopyTestExecutable()
 
    if IsArmProcessor()
-      let command=':!ssh ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
+      let command=':!ssh ' . GetBoard() . ' -o HostKeyAlgorithms=+ssh-rsa ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
@@ -547,7 +546,7 @@ function! GTestFixture()
    call CopyTestExecutable()
 
    if IsArmProcessor()
-      let command=':!ssh ' . GetBoard() . ' ./' . executable . ' ' . gtest_filter[0] 
+      let command=':!ssh ' . GetBoard() . ' -o HostKeyAlgorithms=+ssh-rsa  ./' . executable . ' ' . gtest_filter[0] 
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
@@ -595,7 +594,7 @@ function! GTestTestRunner()
 
    if IsArmProcessor()
       call CopyTestRunner()
-      let command=':!ssh ' . GetBoard() . ' ./TestRunner ' . gtest_filter[0] 
+      let command=':!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa ./TestRunner ' . gtest_filter[0] 
    else
       let command=':!let LLVM_PROFILE_FILE=build/tests/Test_Engine/CMakeFiles/Test_Engine.dir | build/bin/TestRunner ' . gtest_filter[0]
    endif
@@ -617,7 +616,7 @@ function! GTestAllTestRunner()
    let g:currentWindow=winnr()
    if IsArmProcessor()
       call CopyTestRunner()
-      let command=':!ssh ' . GetBoard() . ' ./TestRunner '
+      let command=':!ssh ' . GetBoard() . '  -o HostKeyAlgorithms=+ssh-rsa ./TestRunner '
    else
       let command=':!build/bin/TestRunner ' 
    endif
