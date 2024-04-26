@@ -1,8 +1,14 @@
 "===============================================================================
 "
 "
+"  When developing vimscripts for this plugin, use the command below to
+"  reinstall it after making changes (don't include the ':' when pasting to the 
+"  command line):
+"
 "  :unlet g:CPP_DEV_Version | runtime! plugin/cpp-dev.vim
 "
+"  Author:  Bill de Bruyn
+"  email:   bill@azul3d.com
 "
 "===============================================================================
 
@@ -17,7 +23,8 @@ let g:CPP_DEV_Version= "0.0.1"
 
 let g:testDirectory=''
 let g:gtest_filter='*.*'
-let g:isMosquittoInstalled=0
+let g:isMosquittoInstalled=0      " Used to prevent needless copies to target
+let g:isResourceDirInstalled=0    " Used for prevent needless copies to target
 
 "===============================================================================
 "  g:gcov 
@@ -32,6 +39,399 @@ let g:midoriPid=g:NO_PID
 let g:midoriWindow=0
 
 let g:currentWindow=winnr()
+
+"===============================================================================
+"
+" -- Check if a file exists
+"
+"===============================================================================
+function! GetUbuntuCodeName()
+    let l:os_info = system('grep DISTRIB_CODENAME /etc/lsb-release')
+
+    if l:os_info =~ 'jammy'
+        return 'jammy'
+    endif
+
+    if l:os_info =~ 'focal'
+        return 'focal'
+    endif
+
+    return 'Unknown version'
+endfunction
+
+"===============================================================================
+"
+" -- Check if we are Jammy
+"
+"===============================================================================
+function! IsJammy()
+   if GetUbuntuCodeName() == 'jammy'
+      return 1
+   endif
+   return 0
+endfunction
+
+"===============================================================================
+"
+" -- Check if we are Focal
+"
+"===============================================================================
+function! IsFocal()
+   if GetUbuntuCodeName() == 'focal'
+      return 1
+   endif
+   return 0
+endfunction
+
+"===============================================================================
+"
+" -- Check if a file exists
+"
+"===============================================================================
+function! FileExists(filepath)
+   if filereadable(a:filepath)
+      return 1
+   endif
+
+   return 0
+endfunction
+
+"===============================================================================
+"
+" -- Stripe the filename from the path. Return just the path
+"
+"===============================================================================
+function! GetDirectoryPath(filePath)
+    let l:dirPath = fnamemodify(a:filePath, ':h')
+
+    if l:dirPath == '.'
+       return ''
+    endif
+
+    let l:dirPath= l:dirPath . '/'
+    return l:dirPath
+endfunction
+
+"===============================================================================
+"
+" -- Create a directory on the host from a path/filname
+"
+"===============================================================================
+function! MakeDirectoryFromPath(fullPath)
+   let l:dirPath = fnamemodify(a:fullPath, ':h')
+   let l:command = 'mkdir -p ' . shellescape(l:dirPath)
+   let l:command=l:command . ' 2>/dev/null'
+   "echo 'MakeDirectoryFromPath: ' . l:command
+   call system(l:command)
+
+   if v:shell_error
+      echo "Failed to create directory: " . l:dirPath
+      return 0
+   else
+      return 1
+   endif
+endfunction
+
+"===============================================================================
+"
+" -- Transfer options
+"
+"===============================================================================
+function! GetTransferOptions()
+   if IsJammy()
+      return ' -o HostKeyAlgorithms=+ssh-rsa '
+   endif
+   return ''
+endfunction
+
+"===============================================================================
+"
+" -- Execute ssh command to target
+"
+"===============================================================================
+function! Ssh(command)
+   let l:cmd='ssh ' . GetTransferOptions() . ' ' . GetBoard() . ' '
+   let l:cmd .= shellescape(a:command, 1)
+   echo l:cmd
+   let results=system(l:cmd)
+
+   if v:shell_error
+      echoerr "Failed " . a:command
+      return 0
+   endif
+   
+   if len(l:results)==0
+      return 1
+   endif
+
+   return l:results
+endfunction
+
+"===============================================================================
+"
+" -- Execute ssh command to target
+"     isToPath -  0:  do not create the host path on the target. Copy of the
+"                     file is to the root directory.
+"                 1:  Create the host path on the target and copy the target
+"                     file to it.
+"
+"===============================================================================
+function! FileToTarget(pathFilename, path)
+   if (IsArmProcessor())
+      if a:path == ''
+         let l:path=''
+      else
+         let l:path=a:path
+         let l:command='mkdir -p ' . l:path
+
+         if !Ssh(l:command)
+            echo 'ERROR: failed to executed
+            return 0
+         endif
+      endif
+
+      " if a:isToPath == 0
+      "    let l:command='scp ' . GetTransferOptions() . ' ' . a:pathFilename . ' ' . GetBoard() . ':'
+      "    echo "let l:command='scp ' . GetTransferOptions() . ' ' . a:pathFilename . ' ' . GetBoard() . ':'"
+      " else
+         let l:command='scp ' . GetTransferOptions() . ' ' . a:pathFilename . ' ' . GetBoard() . ':' . l:path 
+      " endif
+
+      let l:command=l:command . ' 2>/dev/null'
+      " echo 'command=' . l:command
+      call system(l:command)
+
+      if v:shell_error
+         echoerr "Failed " . l:command
+         return 0
+      endif
+
+      return 1
+   endif
+endfunction
+
+"===============================================================================
+"
+" -- Test if file exists on target
+"
+"===============================================================================
+function! IsFileOnTarget(targetPathFilename)
+   let l:command="test -f " . a:targetPathFilename . " && echo '1' || echo '0'"
+   "let l:command="\"" . l:command . "\""
+   return Ssh(l:command)
+endfunction
+
+"===============================================================================
+"
+" -- Execute ssh command to target
+"
+"===============================================================================
+function! TargetFileToHost(targetPathFilename, hostPathFilename)
+   if (IsArmProcessor())
+      let l:command='scp ' . GetTransferOptions() . ' ' . GetBoard() . ':' . a:targetPathFilename . ' ' . a:hostPathFilename
+      let l:command=l:command . ' 2>/dev/null'
+      call system(l:command)
+
+      if v:shell_error
+         echoerr "Failed " . l:command
+         return 0
+      endif
+
+      return 1
+   endif
+endfunction
+
+"===============================================================================
+"
+" -- Generate the filename for a sha256 hash file
+"
+"===============================================================================
+function! GenerateSHA256Filename(filepath)
+   let l:outputFile=a:filepath . '.sha256'
+   return l:outputFile
+endfunction
+
+"===============================================================================
+"
+" -- Calculate sha256 hash of <filename> and return the hash value
+"
+"===============================================================================
+function! GenerateSHA256Hash(filename)
+   let l:command = 'sha256sum ' . shellescape(a:filename) . ' | cut -d " " -f1'
+   let l:hash = system(l:command)
+
+   if v:shell_error
+       echoerr "Failed to compute SHA256 hash for " . a:filename
+       return 0
+   endif
+
+   return l:hash
+endfunction
+
+"===============================================================================
+"
+" -- Get the hash value from <pathFilename> and save to <filename>.sha256
+"
+"===============================================================================
+function! WriteSHA256File(pathFilename, hash)
+   " echo 'WriteSHA256File: outputFile=' . a:pathFilename
+   return writefile([a:hash[:-2]], a:pathFilename)
+endfunction
+
+"===============================================================================
+"
+" -- Copies sha256 hash file from target to host
+"
+"===============================================================================
+function! CopySHA256ToTarget(filename, path)
+   if (IsArmProcessor())
+      if !FileToTarget(a:filename, a:path)
+         echo 'Error: Failed to transfer: ' . a:filename
+         return 0
+      endif
+   endif
+   return 1
+endfunction
+
+"===============================================================================
+"
+" -- Copies sha256 hash file from target to host
+"
+"===============================================================================
+function! CopySHA256FromTarget(targetPathFilename, hostPathFilename)
+   if (IsArmProcessor())
+      if !TargetFileToHost(a:targetPathFilename, a:hostPathFilename)
+         return 0
+      endif
+
+      return a:hostPathFilename
+   endif
+
+   return
+endfunction
+
+"===============================================================================
+"
+" -- Compare sha256 hash to a file containing a hash to check for equality
+"
+"===============================================================================
+function! IsEqualSHA256Hash(file1, hash2)
+   "
+   "  Remove extranous characters
+   "
+   let l:hash2 = a:hash2[:-2]
+
+   let l:hash1 = readfile(a:file1)
+
+    if empty(l:hash1)
+       echo 'ERROR: no hash found in file ' . file1
+       return 0
+    endif
+
+    let l:hash1=trim(l:hash1[0])
+
+    if l:hash1 == l:hash2
+       return 1
+    endif
+
+    return 0
+endfunction
+
+"===============================================================================
+"
+" -- Check to see if the target file is identical to the host file. 
+"    Perform sha256 hash on the host file. Check if the target has a file
+"    with the extension .sta256. If the target does not have the file, then
+"    a file transfer is necessary. Create the .sta256 file and send it
+"    to the target as well as the target file. If the sta256 file exists on the 
+"    target, copy it to the host. Compare the contents of the target file against 
+"    the hash of the host file. If it does not match, then copy the host version 
+"    of the .sta256 file to the target and the target file. Otherwise, the file 
+"    transfer does not have to take place.
+"
+"===============================================================================
+function IsFileTransferable(pathFilename)
+
+   "
+   "  Create a hash value from the file
+   "
+   let l:hash=GenerateSHA256Hash(a:pathFilename)
+
+   "
+   "  Generate the <filename>.sha256 filename plus path
+   "
+   let l:sha256PathFilename=GenerateSHA256Filename(a:pathFilename)
+   "
+   "  Generate the /tmp/<filename>.sha256 path filename
+   "
+   let l:hostPathFilename='/tmp/' . l:sha256PathFilename
+   
+   "
+   "  If the hostPathFilename path does not exist, create it
+   "
+   if !MakeDirectoryFromPath(l:hostPathFilename)
+      echo 'ERROR: Cannot crate directory from ' . l:hostPathFilename
+      return 0
+   endif
+
+   "
+   "  Do not assume the <filename>.sha256 file exists on the target
+   "  filesystem.
+   "
+   let l:isTargetSHAFileExist=0
+
+   "
+   "  Check if the <filename>.sha256 exists on the target filesystem
+   "
+   if IsFileOnTarget(l:sha256PathFilename)
+      "
+      "  Copy the <filename>.sha256 to host directory
+      "
+      if TargetFileToHost(l:sha256PathFilename, l:hostPathFilename)
+         "
+         "  Indicate we have the sha256 file
+         "
+         let l:isTargetSHAFileExist=1
+      else
+         echo 'FAILED to transfered sha256 to target'
+      endif
+   endif
+
+   "
+   "  Assume the <filename>.sha256 does not match
+   "
+   let l:isTransferable=1
+
+   "
+   "  If the target <filename>.sha256 is on the host,
+   "  comapare the hash value for equal.
+   "
+   if l:isTargetSHAFileExist
+      if IsEqualSHA256Hash(l:hostPathFilename, l:hash)
+         "
+         "  Hash values are equal, no need to perform a file transfer
+         "
+         let l:isTransferable=0
+      endif
+   endif
+
+   "
+   "  If a file transfer is required, transfer it
+   "
+   if l:isTransferable
+      "
+      "  Create a <filename>.sha256 file in the tmp dir
+      "
+      call WriteSHA256File(l:hostPathFilename, l:hash)
+      "
+      "  Copy the /tmp/file to the target
+      "
+      call CopySHA256ToTarget(l:hostPathFilename, GetDirectoryPath(a:pathFilename))
+      return 1
+   endif
+
+   return 0
+endfunction
 
 
 "===============================================================================
@@ -303,8 +703,10 @@ function! BuildAll()
 endfunction
 
 function! PKill(process)
-   let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa \"pidof " . a:process . " | xargs kill -9"
-   exe command 
+   " let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa \"pidof " . a:process . " | xargs kill -9"
+   " exe command 
+   let command="\"pidof " . a:process . " | xargs kill -9"
+   return Ssh(l:command)
 endfunction
 
 function! IsTestRunning()
@@ -316,9 +718,11 @@ endfunction
 function! KillTests()
    if (IsTestRunning())
       let kill="ps aux|grep '\-\-gtest_filter' | sed 's/ \+/ /g' |cut -d' ' -f2 |xargs kill -9"
-      let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa " . kill 
-      let results=substitute(system(command), '\n\+$', '', '') | echo strtrans(results)
-      return results
+      echo 'KillTests: kill=' . kill
+      return Ssh(kill)
+      " let command=":!ssh " . GetBoard() . "  -o HostKeyAlgorithms=+ssh-rsa " . kill 
+      " let results=substitute(system(command), '\n\+$', '', '') | echo strtrans(results)
+      " return results
    endif
    return "No tests running"
 endfunction
@@ -330,18 +734,24 @@ endfunction
 "
 "===============================================================================
 function! CopyTestExecutable()
-   call InstallMosquitto()
+   "call InstallMosquitto()
    if IsArmProcessor()
       if !DoesTestFixtureHaveExecutable()
          return 'no executable'
       endif
+
       call KillTests()
-      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa build/bin/' . GetDirectoryName() . ' ' . GetBoard() . ':'
-      silent exe command . ' 2>&1 | tee /tmp/vim-log.txt'
-      redraw
-      return "success"
+      let pathFilename='build/bin/' . GetDirectoryName()
+
+      if IsFileTransferable(l:pathFilename)
+         echo 'copying test to target...'
+         let results=FileToTarget(l:pathFilename, '')
+         echo 'done copying test to target'
+         return l:results
+      endif
+
+      return 0
    endif
-   return 'Not an Arm processor'
 endfunction
 
 "===============================================================================
@@ -385,18 +795,34 @@ endfunction
 
 "===============================================================================
 "
-" -- Command to copy the resources directory to the ARM processor
+" -- 
 "
 "===============================================================================
-function! CopyResourcesDirCommand()
-   if IsArmProcessor()
-      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa -r resources/ ' . GetBoard() . ':'
-      exec command
-      redraw
-      return 'succeeded'
-   endif
-   return 'Not an Arm processor'
+function! CopyDirToTaget(directory, path)
+    let l:dir = a:directory =~ '/$' ? a:directory : a:directory . '/'
+    let l:files = split(glob(l:dir . '*'), "\n")
+
+    for l:file in l:files
+        if IsFileTransferable(l:file)
+            call FileToTarget(l:file, a:path)
+         endif
+    endfor
 endfunction
+
+"-"===============================================================================
+"-"
+"-" -- Command to copy the resources directory to the ARM processor
+"-"
+"-"===============================================================================
+"-function! CopyResourcesDirCommand()
+"-   if IsArmProcessor()
+"-      let command=':!scp -o HostKeyAlgorithms=+ssh-rsa -r resources/ ' . GetBoard() . ':'
+"-      exec command
+"-      redraw
+"-      return 'succeeded'
+"-   endif
+"-   return 'Not an Arm processor'
+"-endfunction
 
 "===============================================================================
 "
@@ -406,12 +832,13 @@ endfunction
 function! CopyResourcesToTarget()
    if IsArmProcessor()
       if IsResourcesDir()
-         call CopyResourcesDirCommand()
+         call CopyDirToTaget('resources/', 'resources/')
+         "if !g:isResourceDirInstalled
+         "   call CopyResourcesDirCommand()
+         "   let g:isResourceDirInstalled=0
+         "endif
       endif
-      call CopyAllTestExecutables()
-      return 'succeeded'
    endif
-   return 'Not an Arm processor'
 endfunction
 
 "===============================================================================
@@ -491,9 +918,12 @@ function! GTestOneFixtureOneTest()
 
    let executable=GetDirectoryName()
    call CopyTestExecutable()
+   call CopyResourcesToTarget()
 
    if IsArmProcessor()
-      let command=':!ssh ' . GetBoard() . ' -o HostKeyAlgorithms=+ssh-rsa ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
+      echo KillTests()
+      let command=':!ssh ' . GetTransferOptions() . ' ' . GetBoard() . ' ". /etc/profile; export BROKER_IP=\"127.0.0.1\"; ./' . executable . ' ' . gtest_filter[0] . '"'
+      exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
    else
       if IsGCOV()
          let qualifier='LLVM_PROFILE_FILE=' . GetLlvmBuildPath() . 'default.profraw '
@@ -501,12 +931,15 @@ function! GTestOneFixtureOneTest()
          let qualifier=''
       endif
       let command=':!' . qualifier . './build/bin/' . executable . ' ' . gtest_filter[0]
+      echo 'GTestOneFixtureOneTest: ' . command
+      exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
    endif
 
-   exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
-   redraw
-   exe ':cg /tmp/gtestoutput.txt | copen' 
-   redraw
+   " echo 'GTestOneFixtureOneTest: ' . command
+   " exe command . ' 2>&1 | tee /tmp/gtestoutput.txt'
+   " redraw
+  exe ':cg /tmp/gtestoutput.txt | copen' 
+  redraw
 endfunction
 
 "===============================================================================
