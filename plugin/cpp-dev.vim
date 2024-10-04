@@ -150,7 +150,7 @@ endfunction
 "
 "===============================================================================
 function! Ssh(command)
-   let l:cmd='ssh ' . GetTransferOptions() . ' ' . GetBoard() . ' '
+   let l:cmd='ssh -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa ' . GetBoard() . ' '
    let l:cmd .= shellescape(a:command, 1)
    echo l:cmd
    let results=system(l:cmd)
