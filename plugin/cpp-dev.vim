@@ -139,7 +139,7 @@ endfunction
 "===============================================================================
 function! GetTransferOptions()
    if IsJammy()
-      return ' -o HostKeyAlgorithms=+ssh-rsa '
+      return ' -o StrictHostKeyChecking=no -o HostKeyAlgorithms=+ssh-rsa '
    endif
    return ''
 endfunction
