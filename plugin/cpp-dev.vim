@@ -1743,6 +1743,7 @@ map <F8> :w <bar>call RunPython()<cr>
 map <F9> :w <bar>echo LlvmGcov()<cr><cr><cr>
 " map <F9> :w <bar>echo RunGcovOnTest()<cr><cr><cr>
 map <F10> :w <bar>call BuildAll()<cr>
+map <F11> :IPythonCellRestart<cr>
 
 noremap <Leader>c :noh<cr>
 noremap <Leader>d :split<bar> YcmCompleter GoToDeclaration<cr>
